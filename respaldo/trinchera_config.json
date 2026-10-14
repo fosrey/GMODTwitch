@@ -1,0 +1,84 @@
+{
+	"unoPorViewer": true,
+	"cadaveres": true,
+	"albedrio": {
+		"radio": 572,
+		"correr": false,
+		"activo": true,
+		"min": 10,
+		"max": 25
+	},
+	"colorTwitch": true,
+	"vida": {
+		"mod": 2,
+		"vip": 1.5,
+		"streamer": 3,
+		"sub": 1.25
+	},
+	"npcs": {
+		"npc_fastzombie": {
+			"rango": "viewer",
+			"relacion": "defecto",
+			"alias": "rapido"
+		},
+		"npc_headcrab": {
+			"rango": "viewer",
+			"relacion": "defecto",
+			"alias": "headcrab"
+		},
+		"npc_poisonzombie": {
+			"rango": "viewer",
+			"relacion": "defecto",
+			"alias": "venenoso"
+		},
+		"npc_antlion": {
+			"rango": "viewer",
+			"relacion": "defecto",
+			"alias": "antlion"
+		},
+		"npc_citizen": {
+			"rango": "viewer",
+			"relacion": "aliado",
+			"alias": "ciudadano"
+		},
+		"Rebel": {
+			"rango": "viewer",
+			"relacion": "aliado",
+			"alias": "rebelde"
+		},
+		"npc_antlionguard": {
+			"rango": "mod",
+			"relacion": "defecto",
+			"alias": "guardian"
+		},
+		"npc_zombie": {
+			"rango": "viewer",
+			"relacion": "defecto",
+			"alias": "zombie"
+		},
+		"Medic": {
+			"rango": "viewer",
+			"relacion": "aliado",
+			"alias": "medico"
+		},
+		"npc_zombine": {
+			"rango": "sub",
+			"relacion": "defecto",
+			"alias": "zombine"
+		},
+		"npc_vortigaunt": {
+			"rango": "viewer",
+			"relacion": "aliado",
+			"alias": "vortigaunt"
+		}
+	},
+	"estilo": "ww1",
+	"max": 25,
+	"activo": true,
+	"globos": true,
+	"frases": {
+		"activo": true,
+		"silencio": 45,
+		"cada": 20
+	}
+}

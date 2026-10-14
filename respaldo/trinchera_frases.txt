@@ -1,0 +1,145 @@
+# ============================================================
+#  La Trinchera - Frases ambientales
+# ============================================================
+#  Si un viewer lleva un rato sin escribir, su NPC dice una de
+#  estas frases al azar.
+#
+#  - Una frase por línea. Agrega todas las que quieras.
+#  - Las líneas que empiezan con # son comentarios.
+#  - Si la frase empieza y termina con *asteriscos*, sale como
+#    texto amarillo flotante (una acción o pensamiento),
+#    no como globo de diálogo.
+#  - {nombre} se reemplaza por el nombre del viewer.
+#
+#  Guarda el archivo y el juego lo recarga solo en unos segundos.
+# ============================================================
+
+# --- Diálogos ---
+¿Alguien tiene un cigarrillo?
+Huele a gas... ¡máscaras!
+Mi madre cree que estoy en una granja.
+"Estaremos en casa para Navidad", dijeron.
+Otra vez lluvia. Otra vez barro.
+¿Escuchaste eso? ...Solo son ratas.
+Silbato en tres minutos.
+Cuando acabe esto abro una panadería.
+Le escribí a Marie. Todavía no contesta.
+Mi fusil tiene más barro que balas.
+Las botas me están matando más que el enemigo.
+Té frío y galletas duras. Delicioso.
+¿Esa es nuestra artillería o la de ellos?
+Nadie cruza la tierra de nadie dos veces.
+Soy {nombre} y no pienso morir en esta trinchera.
+Hace frío en esta trinchera.
+Un día más, un día menos.
+Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn.
+¿Escuchaste eso bajo la tierra?
+Los ángulos de este lugar están mal...
+No mires al cielo esta noche.
+El mar me llama por mi nombre.
+Leí una página de más.
+¡Iä! ¡Iä!
+Las estrellas casi están en posición.
+Mis sueños ya no son míos.
+Hay algo detrás de la niebla. Siempre lo hay.
+Innsmouth no está tan mal... si te gustan los peces.
+No es locura si todos lo vemos.
+Siento que alguien escribe sobre mí en un chat.
+¿Alguien más tiene hambre?
+Saludos al chat.
+¿Qué hora es?
+Me aburro...
+Yo no fui.
+¿Y ahora qué hacemos?
+Creo que dejé la estufa prendida.
+¿Esto cuenta como horas extra?
+Nadie me dijo que habría zombies.
+Necesito vacaciones.
+¿Alguien vio mi cartera?
+Juraría que esta pared antes no estaba aquí.
+Chat, ¿me ven?
+No estoy perdido, estoy explorando.
+Esto no venía en el contrato.
+¿Quién apagó las luces?
+Si me muero, que suene algo épico.
+Tengo un mal presentimiento.
+Shhh... creo que algo nos mira.
+Hoy sí sobrevivo. Creo.
+¿Y si mejor nos vamos de aquí?
+Ese barril me mira raro.
+No me pagan lo suficiente para esto.
+Prometo que esta vez no huyo.
+Me duele todo y no sé por qué.
+Ya casi es hora de comer, ¿no?
+Cuando sea grande quiero ser personaje principal.
+Esto huele a emboscada.
+Necesito un café... o diez.
+Estoy bien. Todo bien. Perfectamente bien.
+¿Alguien sabe dónde está la salida?
+Yo solo vine por los snacks.
+¿Quién dejó esa caja ahí?
+Primero muerto que sin estilo.
+¿Somos los buenos o los malos?
+No toques eso.
+Esto ya lo viví... déjà vu.
+Ay, mi espalda.
+¿Alguien más escucha música?
+Pensé que esto sería más tranquilo.
+Juro que vi algo moverse.
+Si alguien pregunta, yo estaba aquí todo el tiempo.
+Mi plan es infalible. Bueno, casi.
+No confíes en nadie. Ni en mí.
+¿Y si todo esto es un sueño?
+Tengo hambre de aventuras. Y de tacos.
+
+# --- Acciones y pensamientos ---
+*se rasca la cabeza*
+*bosteza ruidosamente*
+*mira al horizonte con nostalgia*
+*silba una canción vieja*
+*revisa sus bolsillos vacíos*
+*estornuda*
+*se ata las botas*
+*limpia su arma con cuidado*
+*cuenta sus balas... otra vez*
+*escribe una carta que nunca enviará*
+*mira fijamente a la cámara*
+*finge que no pasa nada*
+*tararea algo desafinado*
+*se estira*
+*murmura algo ininteligible*
+*escucha un susurro que nadie más oye*
+*dibuja símbolos extraños en el suelo*
+*se tapa los oídos*
+*tiembla sin razón aparente*
+*sonríe demasiado*
+*cuenta las estrellas*
+*se le cae algo y finge que fue a propósito*
+*olfatea el aire*
+*saluda a nadie*
+*piensa en su hogar*
+*suspira profundamente*
+*se queda mirando una pared*
+*hace guardia con mucha seriedad*
+*se esconde detrás de algo*
+*revisa que nadie lo esté mirando*
+*baila un poquito*
+*reza en voz baja*
+*juega con una piedrita*
+*come una galleta dura*
+*pisa un charco*
+*mira al chat*
+*sospecha de todos*
+*practica su saludo militar*
+*se sacude el barro*
+*escucha pasos a lo lejos*
+*se acomoda el casco*
+*cierra los ojos un momento*
+*lee un mapa al revés*
+*aplaude solo*
+*le habla a una rata*
+*ve algo moverse en la sombra*
+*se ríe de un chiste que nadie contó*
+*piensa en tacos*
+*se pregunta qué hace aquí*
+*tiene un mal presentimiento*

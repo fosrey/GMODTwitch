@@ -1,0 +1,11 @@
+{
+  "canal": "latrinchera_",
+  "comando": "!spawn",
+  "cooldownPorViewerSegundos": 60,
+  "cooldownSubSegundos": 45,
+  "cooldownVipSegundos": 30,
+  "cooldownModSegundos": 8,
+  "cooldownGlobalSegundos": 3,
+  "cooldownGloboSegundos": 2,
+  "carpetaData": "auto"
+}

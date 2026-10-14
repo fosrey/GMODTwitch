@@ -1,0 +1,14 @@
+{
+  "name": "trinchera-twitch-bridge",
+  "version": "1.0.0",
+  "description": "Puente entre el chat de Twitch y Garry's Mod (La Trinchera)",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "node index.js",
+    "prueba": "node prueba.js"
+  },
+  "dependencies": {
+    "tmi.js": "^1.8.5"
+  }
+}
