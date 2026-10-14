@@ -273,8 +273,8 @@ local function AlbedrioTick(config, ahora)
 	if not ajustes.activo then return end
 
 	for _, npc in ipairs(TRINCHERA.NPCsVivos()) do
-		-- Los que siguen al jugador no pasean por su cuenta.
-		if npc:IsNPC() and not npc.TrincheraCaido and not npc.TrincheraSigue and ahora >= (npc.TrincheraOcupadoHasta or 0) then
+		-- Los que siguen al jugador o están en un duelo no pasean por su cuenta.
+		if npc:IsNPC() and not npc.TrincheraCaido and not npc.TrincheraSigue and not npc.TrincheraDuelo and ahora >= (npc.TrincheraOcupadoHasta or 0) then
 			-- El primer paseo llega pronto; luego cada min..max segundos.
 			npc.TrincheraProximoPaseo = npc.TrincheraProximoPaseo or (ahora + math.Rand(2, ajustes.min))
 
@@ -482,6 +482,12 @@ hook.Add("KeyPress", "TrincheraSeguir", function(ply, tecla)
 
 	local npc = NPCDelante(ply)
 	if not npc then return end
+
+	-- En pleno duelo no se le puede pedir que te siga ni darle armas.
+	if npc.TrincheraDuelo then
+		ply:PrintMessage(HUD_PRINTCENTER, "Está en pleno duelo")
+		return
+	end
 
 	if ply:KeyDown(IN_SPEED) then
 		DarArma(ply, npc)

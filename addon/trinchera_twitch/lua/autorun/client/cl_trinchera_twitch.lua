@@ -56,11 +56,113 @@ local COLOR_ACCION = Color(255, 220, 60)
 
 surface.CreateFont("TrincheraAccion", { font = "Roboto", size = 44, weight = 800, italic = true, antialias = true, extended = true })
 
-local globos = {} -- entidad -> { texto, inicio, fin, lineas }
+local globos = {} -- entidad -> { texto, emotes, inicio, fin, lineas }
+
+---------------------------------------------------------------------------
+-- Emotes de Twitch: se descargan del CDN de Twitch y la imagen queda solo en memoria.
+-- GMod solo crea imágenes desde un archivo y lo sigue leyendo mientras la muestra,
+-- así que se escribe uno temporal que vive mientras dure el globo (+1 s) y luego se borra.
+---------------------------------------------------------------------------
+
+local CARPETA_EMOTES = "trinchera_emotes"
+local URL_EMOTE = "https://static-cdn.jtvnw.net/emoticons/v2/%s/static/dark/2.0"
+local MARGEN_EMOTE = 1 -- segundos que el archivo sobrevive al globo
+
+-- Por si quedó algo de una sesión que se cerró de golpe.
+file.CreateDir(CARPETA_EMOTES)
+for _, f in ipairs(file.Find(CARPETA_EMOTES .. "/*", "DATA") or {}) do
+	file.Delete(CARPETA_EMOTES .. "/" .. f)
+end
+
+-- id -> { png (bytes en memoria), mat, ruta (archivo temporal), hasta (cuándo se borra), fallo }
+local emotes = {}
+local escritos = 0
+
+-- Cuando un emote termina de cargar (o falla), los globos se vuelven a acomodar.
+local function ReacomodarGlobos()
+	for _, g in pairs(globos) do g.lineas = nil end
+end
+
+local function Soltar(e)
+	if e.ruta then file.Delete(e.ruta) end
+	e.ruta, e.mat = nil, nil
+end
+
+-- Escribe el archivo temporal (con nombre nuevo cada vez, para que GMod no reuse un material viejo) y crea el material.
+local function Preparar(id, e)
+	if e.mat then return end
+
+	escritos = escritos + 1
+	e.ruta = CARPETA_EMOTES .. "/" .. id .. "_" .. escritos .. ".png"
+	file.Write(e.ruta, e.png)
+
+	local mat = Material("../data/" .. e.ruta, "smooth mips")
+	if mat:IsError() then
+		Soltar(e)
+		e.fallo = true
+	else
+		e.mat = mat
+	end
+	ReacomodarGlobos()
+end
+
+-- hasta: hasta cuándo se necesita la imagen (fin del globo + margen).
+local function PedirEmote(id, hasta)
+	local e = emotes[id]
+	if e then
+		e.hasta = math.max(e.hasta, hasta)
+		if e.png and not e.fallo then Preparar(id, e) end
+		return
+	end
+
+	e = { hasta = hasta }
+	emotes[id] = e
+	http.Fetch(string.format(URL_EMOTE, id), function(cuerpo, _, _, codigo)
+		if codigo == 200 and string.sub(cuerpo, 1, 8) == "\137PNG\r\n\26\n" then
+			e.png = cuerpo
+			Preparar(id, e)
+		else
+			e.fallo = true
+			ReacomodarGlobos()
+		end
+	end, function()
+		e.fallo = true
+		ReacomodarGlobos()
+	end)
+end
+
+-- Borra los archivos de los emotes que ya ningún globo muestra (la imagen sigue en memoria).
+timer.Create("TrincheraEmotes", 1, 0, function()
+	local ahora = CurTime()
+	for _, e in pairs(emotes) do
+		if e.ruta and ahora > e.hasta then Soltar(e) end
+	end
+end)
+
+hook.Add("ShutDown", "TrincheraEmotes", function()
+	for _, e in pairs(emotes) do Soltar(e) end
+end)
+
+-- El material del emote si ya está listo; "cargando" mientras se descarga (se deja su hueco).
+local function EmoteDe(g, palabra)
+	local id = g.emotes and g.emotes[palabra]
+	local e = id and emotes[id]
+	if not e or e.fallo then return end
+	return e.mat or "cargando"
+end
 
 net.Receive("TrincheraGlobo", function()
 	local ent = net.ReadEntity()
 	local texto = net.ReadString()
+
+	local ids
+	for _ = 1, net.ReadUInt(8) do
+		local palabra, id = net.ReadString(), net.ReadString()
+		if string.match(id, "^[%w_%-]+$") then
+			ids = ids or {}
+			ids[palabra] = id
+		end
+	end
 
 	for e in pairs(globos) do
 		if not IsValid(e) then globos[e] = nil end
@@ -77,29 +179,70 @@ net.Receive("TrincheraGlobo", function()
 
 	-- Más tiempo en pantalla para mensajes más largos.
 	local largo = utf8.len(texto) or #texto
-	globos[ent] = { texto = texto, accion = accion, inicio = CurTime(), fin = CurTime() + math.Clamp(3 + largo * 0.07, 4, 11) }
+	local fin = CurTime() + math.Clamp(3 + largo * 0.07, 4, 11)
+	globos[ent] = { texto = texto, emotes = ids, accion = accion, inicio = CurTime(), fin = fin }
+
+	for _, id in pairs(ids or {}) do PedirEmote(id, fin + MARGEN_EMOTE) end
 end)
 
-local function Envolver(texto, fuente)
+-- Parte el texto en líneas que no pasen de GLOBO_ANCHO_MAX.
+-- Cada línea es { ancho, piezas }, y cada pieza es { texto, ancho } o { emote = material, ancho }.
+-- Los emotes son cuadrados del alto de una línea.
+local function Envolver(g, fuente)
 	surface.SetFont(fuente)
-	local lineas, actual = {}, ""
+	local espacio = surface.GetTextSize(" ")
+	local _, altoLinea = surface.GetTextSize("Ay")
 
-	for palabra in string.gmatch(texto, "%S+") do
-		local prueba = actual == "" and palabra or (actual .. " " .. palabra)
-		if surface.GetTextSize(prueba) > GLOBO_ANCHO_MAX and actual ~= "" then
+	local lineas = {}
+	local actual = { ancho = 0, piezas = {} }
+
+	local function Agregar(pieza)
+		local extra = #actual.piezas > 0 and espacio or 0
+		if actual.ancho + extra + pieza.ancho > GLOBO_ANCHO_MAX and #actual.piezas > 0 then
 			table.insert(lineas, actual)
-			actual = palabra
+			actual = { ancho = 0, piezas = {} }
+			extra = 0
+		end
+		actual.ancho = actual.ancho + extra + pieza.ancho
+		table.insert(actual.piezas, pieza)
+	end
+
+	for palabra in string.gmatch(g.texto, "%S+") do
+		local emote = EmoteDe(g, palabra)
+		if emote then
+			Agregar({ emote = emote, ancho = altoLinea })
 		else
-			actual = prueba
+			Agregar({ texto = palabra, ancho = (surface.GetTextSize(palabra)) })
 		end
 	end
-	if actual ~= "" then table.insert(lineas, actual) end
+	if #actual.piezas > 0 then table.insert(lineas, actual) end
 
 	if #lineas > GLOBO_MAX_LINEAS then
 		lineas = { unpack(lineas, 1, GLOBO_MAX_LINEAS) }
-		lineas[GLOBO_MAX_LINEAS] = lineas[GLOBO_MAX_LINEAS] .. "…"
+		local ultima = lineas[GLOBO_MAX_LINEAS]
+		local puntos = surface.GetTextSize("…")
+		table.insert(ultima.piezas, { texto = "…", ancho = puntos, pegado = true })
+		ultima.ancho = ultima.ancho + puntos
 	end
-	return lineas
+	return lineas, altoLinea, espacio
+end
+
+-- Dibuja una línea centrada en x. "texto" es una función que dibuja una palabra (con o sin borde).
+local function DibujarLinea(linea, x, y, espacio, alto, a, texto)
+	local cx = x - linea.ancho / 2
+	for i, p in ipairs(linea.piezas) do
+		if i > 1 and not p.pegado then cx = cx + espacio end
+		if p.emote == "cargando" then
+			-- Se deja el hueco hasta que termine de descargarse.
+		elseif p.emote then
+			surface.SetMaterial(p.emote)
+			surface.SetDrawColor(255, 255, 255, a)
+			surface.DrawTexturedRect(cx, y, alto, alto)
+		else
+			texto(p.texto, cx, y)
+		end
+		cx = cx + p.ancho
+	end
 end
 
 -- "base" es el borde inferior disponible (encima del nombre/insignia), en coordenadas del 3D2D.
@@ -114,10 +257,8 @@ local function DibujarGlobo(npc, estiloId, estilo, x, base, alpha)
 	end
 
 	local fuente = g.accion and "TrincheraAccion" or ("TrincheraGlobo_" .. estiloId)
-	g.lineas = g.lineas or Envolver(g.texto, fuente)
-
-	surface.SetFont(fuente)
-	local _, altoLinea = surface.GetTextSize("Ay")
+	if not g.lineas then g.lineas, g.altoLinea, g.espacio = Envolver(g, fuente) end
+	local altoLinea, espacio = g.altoLinea, g.espacio
 
 	-- Aparece subiendo un poco y se desvanece al final.
 	local entrada = math.Clamp((ahora - g.inicio) / 0.2, 0, 1)
@@ -130,16 +271,18 @@ local function DibujarGlobo(npc, estiloId, estilo, x, base, alpha)
 		local ax = x + math.sin(vida * 1.5) * 6
 		local abajo = base - 16 - vida * 6 + (1 - entrada) * 20
 		local arriba = abajo - #g.lineas * altoLinea
+		local col, borde = ColorAlpha(COLOR_ACCION, a), Color(0, 0, 0, a)
 
 		for i, l in ipairs(g.lineas) do
-			draw.SimpleTextOutlined(l, fuente, ax, arriba + (i - 1) * altoLinea, ColorAlpha(COLOR_ACCION, a),
-				TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP, 3, Color(0, 0, 0, a))
+			DibujarLinea(l, ax, arriba + (i - 1) * altoLinea, espacio, altoLinea, a, function(t, tx, ty)
+				draw.SimpleTextOutlined(t, fuente, tx, ty, col, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 3, borde)
+			end)
 		end
 		return
 	end
 
 	local ancho = 0
-	for _, l in ipairs(g.lineas) do ancho = math.max(ancho, (surface.GetTextSize(l))) end
+	for _, l in ipairs(g.lineas) do ancho = math.max(ancho, l.ancho) end
 
 	local estiloGlobo = estilo.globo
 	local w = ancho + GLOBO_PADDING * 2
@@ -157,9 +300,11 @@ local function DibujarGlobo(npc, estiloId, estilo, x, base, alpha)
 	surface.SetDrawColor(ColorAlpha(estiloGlobo.fondo, a))
 	surface.DrawPoly({ { x = x - 13, y = cola - 1 }, { x = x + 13, y = cola - 1 }, { x = x, y = cola + 16 } })
 
+	local colTexto = ColorAlpha(estiloGlobo.texto, a)
 	for i, l in ipairs(g.lineas) do
-		draw.SimpleText(l, fuente, x, by + GLOBO_PADDING * 0.6 + (i - 1) * altoLinea, ColorAlpha(estiloGlobo.texto, a),
-			TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+		DibujarLinea(l, x, by + GLOBO_PADDING * 0.6 + (i - 1) * altoLinea, espacio, altoLinea, a, function(t, tx, ty)
+			draw.SimpleText(t, fuente, tx, ty, colTexto, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+		end)
 	end
 end
 

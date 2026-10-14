@@ -6,6 +6,8 @@ if not TRINCHERA then include("autorun/sh_trinchera_estilos.lua") end
 
 AddCSLuaFile("autorun/client/cl_trinchera_twitch.lua")
 AddCSLuaFile("autorun/client/cl_trinchera_menu.lua")
+AddCSLuaFile("autorun/client/cl_trinchera_eventos.lua")
+AddCSLuaFile("autorun/client/cl_trinchera_camara.lua")
 
 util.AddNetworkString("TrincheraAviso")
 util.AddNetworkString("TrincheraPedirConfig")
@@ -19,6 +21,7 @@ local CARPETA = "trinchera_twitch"
 local CONFIG_ARCHIVO = "trinchera_config.json"
 local MAX_POR_TICK = 10
 local MAX_LARGO_GLOBO = 150
+local MAX_EMOTES = 20
 local RELACIONES = { defecto = true, aliado = true, enemigo = true }
 local RANGOS_NPC = { viewer = true, sub = true, vip = true, mod = true }
 
@@ -34,12 +37,14 @@ local function ConfigPorDefecto()
 		globos = true,
 		unoPorViewer = true,
 		cadaveres = true,
+		duelos = true,
 		estilo = "ww1",
 		colorTwitch = false,
 		max = 25,
 		vida = { sub = 1.25, vip = 1.5, mod = 2, streamer = 3 },
 		albedrio = { activo = true, radio = 800, min = 10, max = 25, correr = false, animaciones = 35, resbalon = 5 },
 		frases = { activo = true, cada = 20, silencio = 45 },
+		votacion = { duracion = 30, horda = 10, rebelion = 30, lenta = 15 },
 		npcs = {
 			npc_citizen      = npc("ciudadano"),
 			Rebel            = npc("rebelde"),
@@ -70,13 +75,20 @@ local function Sanear(c)
 	local d = ConfigPorDefecto()
 	if not istable(c) then return d end
 
-	local a, f = c.albedrio, c.frases
+	local a, f, v = c.albedrio, c.frases, c.votacion
 
 	local out = {
 		activo = c.activo ~= false,
 		globos = c.globos ~= false,
 		unoPorViewer = c.unoPorViewer ~= false,
 		cadaveres = c.cadaveres ~= false,
+		duelos = c.duelos ~= false,
+		votacion = {
+			duracion = Numero(v, "duracion", d.votacion.duracion, 10, 120),
+			horda = math.floor(Numero(v, "horda", d.votacion.horda, 1, 30)),
+			rebelion = Numero(v, "rebelion", d.votacion.rebelion, 10, 120),
+			lenta = Numero(v, "lenta", d.votacion.lenta, 5, 60),
+		},
 		albedrio = {
 			activo = not (istable(a) and a.activo == false),
 			radio = Numero(a, "radio", d.albedrio.radio, 100, 4000),
@@ -415,11 +427,32 @@ end
 -- Un texto vacío borra el globo (mensaje borrado, timeout o ban en Twitch).
 ---------------------------------------------------------------------------
 
-local function GloboNPC(npc, texto)
+-- emotes (opcional): { palabra = id } con los emotes de Twitch del mensaje.
+local function GloboNPC(npc, texto, emotes)
 	net.Start("TrincheraGlobo")
 	net.WriteEntity(npc)
 	net.WriteString(texto)
+	net.WriteUInt(table.Count(emotes or {}), 8)
+	for palabra, id in pairs(emotes or {}) do
+		net.WriteString(palabra)
+		net.WriteString(id)
+	end
 	net.Broadcast()
+end
+
+-- Solo palabras cortas e ids que sirvan como nombre de archivo (se guardan en data/trinchera_emotes/).
+local function SanearEmotes(emotes)
+	if not istable(emotes) then return end
+
+	local out, n = {}, 0
+	for palabra, id in pairs(emotes) do
+		if isstring(palabra) and isstring(id) and #palabra <= 50 and string.match(id, "^[%w_%-]+$") and #id <= 64 then
+			out[palabra] = id
+			n = n + 1
+			if n >= MAX_EMOTES then break end
+		end
+	end
+	return out
 end
 
 local function NPCDe(usuario)
@@ -429,7 +462,7 @@ local function NPCDe(usuario)
 	porUsuario[usuario] = nil
 end
 
-local function Decir(usuario, texto)
+local function Decir(usuario, texto, emotes)
 	if not config.globos then return end
 
 	local npc = NPCDe(usuario)
@@ -446,7 +479,7 @@ local function Decir(usuario, texto)
 	end
 
 	npc.TrincheraUltimoHabla = CurTime()
-	GloboNPC(npc, texto)
+	GloboNPC(npc, texto, SanearEmotes(emotes))
 end
 
 local function Callar(usuario)
@@ -454,13 +487,16 @@ local function Callar(usuario)
 	if npc then GloboNPC(npc, "") end
 end
 
--- Para sv_trinchera_vida.lua (libre albedrío y frases ambientales).
+-- Para sv_trinchera_vida.lua (libre albedrío y frases) y sv_trinchera_eventos.lua (duelos y votaciones).
 function TRINCHERA.Config() return config end
 function TRINCHERA.NPCsVivos()
 	LimpiarVivos()
 	return vivos
 end
 TRINCHERA.GloboNPC = GloboNPC
+TRINCHERA.Aviso = Aviso
+TRINCHERA.NPCDe = NPCDe
+TRINCHERA.Decir = Decir
 
 hook.Add("OnNPCKilled", "TrincheraMuerte", function(npc, atacante)
 	local nombre = npc:GetNWString("TrincheraNombre", "")
@@ -506,9 +542,11 @@ timer.Create("TrincheraLeerCola", 0.5, 0, function()
 		local ev = contenido and util.JSONToTable(contenido)
 		if istable(ev) then
 			if ev.accion == "dice" then
-				Decir(ev.usuario, ev.texto)
+				Decir(ev.usuario, ev.texto, ev.emotes)
 			elseif ev.accion == "callar" then
 				Callar(ev.usuario)
+			elseif TRINCHERA.EVENTOS[ev.accion] then
+				TRINCHERA.EVENTOS[ev.accion](ev)
 			else
 				SpawnViewer(ev)
 			end
@@ -563,10 +601,21 @@ concommand.Add("trinchera_test", function(ply, _, args)
 end)
 
 -- trinchera_decir <nombre> <mensaje...>  (prueba de globos sin Twitch)
+-- Para probar emotes: palabra=id, por ejemplo  trinchera_decir Luis hola Kappa=25
 concommand.Add("trinchera_decir", function(ply, _, args)
 	if not EsJefe(ply) or #args < 2 then return end
 	local usuario = table.remove(args, 1)
-	Decir(usuario, table.concat(args, " "))
+
+	local emotes = {}
+	for i, palabra in ipairs(args) do
+		local nombre, id = string.match(palabra, "^(.+)=([%w_%-]+)$")
+		if nombre then
+			args[i] = nombre
+			emotes[nombre] = id
+		end
+	end
+
+	Decir(usuario, table.concat(args, " "), emotes)
 end)
 
 concommand.Add("trinchera_limpiar", function(ply)

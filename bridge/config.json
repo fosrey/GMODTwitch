@@ -7,5 +7,6 @@
   "cooldownModSegundos": 8,
   "cooldownGlobalSegundos": 3,
   "cooldownGloboSegundos": 2,
+  "cooldownDueloSegundos": 20,
   "carpetaData": "auto"
 }

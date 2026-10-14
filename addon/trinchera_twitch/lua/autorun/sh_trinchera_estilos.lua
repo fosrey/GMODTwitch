@@ -3,6 +3,9 @@ AddCSLuaFile()
 
 TRINCHERA = TRINCHERA or {}
 
+-- Manejadores de eventos del puente que viven en otros archivos: accion -> function(ev).
+TRINCHERA.EVENTOS = TRINCHERA.EVENTOS or {}
+
 -- Rangos de Twitch, de menor a mayor.
 TRINCHERA.NIVEL = { viewer = 0, sub = 1, vip = 2, mod = 3, streamer = 4 }
 

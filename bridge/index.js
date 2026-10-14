@@ -3,6 +3,8 @@
 //   - spawn:  alguien escribió el comando -> aparece su NPC
 //   - dice:   alguien escribió en el chat -> globo de texto sobre su NPC (si tiene uno)
 //   - callar: un mod borró su mensaje, le dio timeout o ban -> se quita su globo
+//   - duelo / aceptar / rechazar: duelos entre NPCs de viewers
+//   - votacion / voto: el streamer o un mod abre una votación y el chat vota con un número
 const tmi = require('tmi.js');
 const { escribirEvento, cargarConfig } = require('./eventos');
 
@@ -16,9 +18,13 @@ if (!canal || canal === 'tu_canal_aqui') {
 
 const comando = (config.comando || '!spawn').toLowerCase();
 const comandoDar = (config.comandoDar || '!dar').toLowerCase();
+const comandoDuelo = (config.comandoDuelo || '!duelo').toLowerCase();
+const comandoVotacion = (config.comandoVotacion || '!votacion').toLowerCase();
+const cooldownDuelo = (config.cooldownDueloSegundos ?? 20) * 1000;
 const cooldownGlobal = (config.cooldownGlobalSegundos ?? 3) * 1000;
 const cooldownGlobo = (config.cooldownGloboSegundos ?? 2) * 1000;
 const MAX_LARGO_GLOBO = 150;
+const MAX_EMOTES = 20;
 
 // Cooldown por viewer según su rango (en milisegundos). El streamer no tiene.
 const cooldownPorRango = {
@@ -120,13 +126,44 @@ function manejarDar(tags, partes) {
   enviar(evento, `-> !dar de ${tags.username}: [${evento.rango}] ${evento.nombre}${tipo ? ` (${tipo})` : ''}`);
 }
 
+// Emotes de Twitch del mensaje: { Kappa: "25", LUL: "425618" }.
+// Twitch da las posiciones en caracteres (no en bytes); los emotes siempre son palabras enteras,
+// así que GMod solo tiene que cambiar esas palabras por la imagen.
+function emotesDe(mensaje, emotes) {
+  if (!emotes) return undefined;
+
+  const letras = [...mensaje];
+  const resultado = {};
+  for (const [id, rangos] of Object.entries(emotes).slice(0, MAX_EMOTES)) {
+    const [inicio, fin] = String(rangos[0]).split('-').map(Number);
+    const nombre = letras.slice(inicio, fin + 1).join('');
+    if (nombre && /^[\w-]+$/.test(id)) resultado[nombre] = id;
+  }
+  return Object.keys(resultado).length ? resultado : undefined;
+}
+
+// !duelo @viewer: reta al NPC de otro viewer. El retado responde con !aceptar o !rechazar.
+const ultimoDueloPorViewer = new Map();
+
+function manejarDuelo(tags, partes) {
+  const usuario = tags.username;
+  const rival = (partes[1] || '').replace(/^@/, '').toLowerCase();
+  if (!/^[a-z0-9_]{1,25}$/.test(rival) || rival === usuario) return;
+
+  const ahora = Date.now();
+  if (ahora - (ultimoDueloPorViewer.get(usuario) || 0) < cooldownDuelo) return;
+  ultimoDueloPorViewer.set(usuario, ahora);
+
+  enviar({ accion: 'duelo', usuario, rival }, `-> duelo: ${usuario} reta a ${rival}`);
+}
+
 // Se mandan los mensajes de todos; GMod ignora a quien no tiene NPC.
-function manejarGlobo(usuario, texto) {
+function manejarGlobo(usuario, texto, emotes) {
   const ahora = Date.now();
   if (ahora - (ultimoGloboPorViewer.get(usuario) || 0) < cooldownGlobo) return;
   ultimoGloboPorViewer.set(usuario, ahora);
 
-  enviar({ accion: 'dice', usuario, texto: recortar(texto) });
+  enviar({ accion: 'dice', usuario, texto: recortar(texto), emotes });
 }
 
 function callar(usuario) {
@@ -164,12 +201,34 @@ client.on('message', (_canal, tags, mensaje) => {
     return;
   }
 
+  if (cmd === comandoDuelo) {
+    manejarDuelo(tags, partes);
+    return;
+  }
+
+  if (cmd === '!aceptar' || cmd === '!rechazar') {
+    enviar({ accion: cmd.slice(1), usuario: tags.username });
+    return;
+  }
+
+  if (cmd === comandoVotacion) {
+    const rango = rangoDe(tags);
+    if (rango === 'streamer' || rango === 'mod') enviar({ accion: 'votacion' }, `-> votación abierta por ${tags.username}`);
+    return;
+  }
+
   // Los comandos de otros bots (!discord, !redes...) no van a los globos.
   if (texto.startsWith('!')) return;
 
+  // Un número solo es un voto. GMod lo cuenta si hay votación abierta y además lo muestra en globo.
+  if (/^[1-9]$/.test(texto)) {
+    enviar({ accion: 'voto', usuario: tags.username, opcion: Number(texto), texto });
+    return;
+  }
+
   // "/me se esconde" en Twitch sale como acción: *se esconde*
   const esMe = tags['message-type'] === 'action';
-  manejarGlobo(tags.username, esMe ? `*${texto}*` : texto);
+  manejarGlobo(tags.username, esMe ? `*${texto}*` : texto, emotesDe(mensaje, tags.emotes));
 });
 
 // Moderación: si un mod borra el mensaje o sanciona al viewer, el globo desaparece al instante.

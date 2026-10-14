@@ -161,6 +161,28 @@ local function AbrirMenu(config)
 	ayudaFrases:Dock(TOP)
 	ayudaFrases:DockMargin(10, 6, 10, 0)
 
+	Titulo("DUELOS Y VOTACIONES")
+	Casilla("Permitir duelos (!duelo @viewer)", config.duelos, function(v) config.duelos = v end)
+	local votacion = config.votacion
+	Deslizador("Duración de la votación (s)", 10, 120, 0, votacion.duracion, function(v) votacion.duracion = math.floor(v) end)
+	Deslizador("Zombies por horda", 1, 30, 0, votacion.horda, function(v) votacion.horda = math.floor(v) end)
+	Deslizador("Duración de la rebelión (s)", 10, 120, 0, votacion.rebelion, function(v) votacion.rebelion = math.floor(v) end)
+	Deslizador("Duración de la cámara lenta (s)", 5, 60, 0, votacion.lenta, function(v) votacion.lenta = math.floor(v) end)
+
+	-- Preferencia de este PC (no se guarda con el resto de la configuración).
+	local camaraDuelo = izq:Add("DCheckBoxLabel")
+	camaraDuelo:SetText("Cámara automática en los duelos")
+	camaraDuelo:SetTextColor(color_white)
+	camaraDuelo:SetConVar("trinchera_camara_duelo")
+	camaraDuelo:Dock(TOP)
+	camaraDuelo:DockMargin(10, 4, 10, 4)
+
+	local abrirVotacion = izq:Add("DButton")
+	abrirVotacion:SetText("Abrir votación ahora")
+	abrirVotacion:Dock(TOP)
+	abrirVotacion:DockMargin(10, 4, 10, 0)
+	abrirVotacion.DoClick = function() RunConsoleCommand("trinchera_votacion") end
+
 	Titulo("VENTAJAS POR RANGO")
 	for _, v in ipairs(VIDAS) do
 		local rango = v[1]
@@ -438,6 +460,7 @@ hook.Add("PopulateToolMenu", "TrincheraMenu", function()
 		panel:Help("Elige qué NPCs pueden aparecer desde el chat, el estilo de los nombres y las ventajas por rango.")
 		panel:Button("Abrir menú de La Trinchera", "trinchera_menu")
 		panel:Button("Eliminar NPCs de viewers", "trinchera_limpiar")
+		panel:Button("Abrir votación", "trinchera_votacion")
 		panel:Help("Atajo: escribe en la consola  bind F6 trinchera_menu")
 	end)
 end)

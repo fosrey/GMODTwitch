@@ -39,7 +39,48 @@ Antes de formatear o cambiar de PC, cópialas a la carpeta `respaldo` de este pr
 | `!spawn <tipo>` | Todos | NPC de ese tipo |
 | `!dar @viewer <tipo>` | Streamer y mods | Le da a ese viewer el NPC elegido, sin cooldown ni restricción de rango, aunque los spawns estén pausados |
 
+| `!duelo @viewer` | Quien tenga NPC | Reta al NPC de otro viewer (cooldown 20 s, `cooldownDueloSegundos`) |
+| `!aceptar` / `!rechazar` | El retado | Responde al reto (30 s para contestar) |
+| `!votacion` | Streamer y mods | Abre una votación de evento |
+| `1`, `2` | Todos | Vota durante una votación (también sale en globo) |
+
 Con `!dar`, si el viewer ya escribió en el chat, se usan su nombre, su color y su rango reales.
+
+## Duelos
+
+- `!duelo @luis`: Luis tiene 30 s para escribir `!aceptar` (o `!rechazar`). Los dos necesitan tener su NPC en el mapa.
+- Al aceptar, los dos NPCs aparecen **frente al streamer**, uno a cada lado, se curan del todo y pelean. Si no hay espacio frente a ti, pelean donde estén.
+- Cada uno pelea con su NPC actual, así que un antlion guard contra un headcrab es posible.
+- Gana el que queda en pie: anuncio grande en pantalla y el ganador celebra. Si nadie cae en 90 s es empate; si uno desaparece (nuevo `!spawn`, limpieza…) se cancela.
+- Un duelo a la vez. Mientras pelean no pasean ni se les puede pedir que te sigan.
+- Los NPCs **sin arma** (por ejemplo ciudadanos desarmados) no pueden atacar: dales un arma con Shift + E antes.
+- Se activan o desactivan en el menú ("Permitir duelos").
+
+## Votaciones
+
+- El streamer o un mod escribe `!votacion` (o botón **"Abrir votación ahora"** en el menú, o `trinchera_votacion`).
+- A la derecha de la pantalla aparece un panel con las opciones y los votos en vivo. El chat vota escribiendo `1` o `2`; se puede cambiar de voto. Dura 30 s (ajustable en el menú).
+- Gana la opción con más votos (empate: al azar). Si nadie vota, no pasa nada.
+- **1 · Horda zombie:** aparecen 10 zombies (ajustable) alrededor del streamer y van por él.
+- **2 · Rebelión:** todos los NPCs de viewers atacan al streamer durante 30 s (ajustable) y después vuelven a su relación normal. Los que van montados en un vehículo no participan.
+- **3 · Cámara lenta:** todo el juego va al 35 % de velocidad durante 15 s reales (ajustable), con los colores apagados y estela de movimiento.
+
+## Cámara en tercera persona
+
+Mira la partida desde detrás del NPC de un viewer, como si lo siguiera una cámara.
+
+| Comando | Qué hace |
+|---|---|
+| `trinchera_ver` | Pasa al siguiente NPC de viewer |
+| `trinchera_ver <usuario>` | Va directo al NPC de ese viewer, por ejemplo `trinchera_ver ana` |
+| `trinchera_ver_salir` | Vuelve a tu cámara |
+
+Atajos recomendados: `bind F7 trinchera_ver` y `bind F8 trinchera_ver_salir`.
+
+- Mientras miras, tu personaje se queda quieto donde estaba y es **invulnerable**; al salir vuelves a mirar hacia donde mirabas.
+- Arriba a la izquierda sale "VIENDO A Ana" (se ve en el stream).
+- Si el NPC muere, la cámara se queda 3 s sobre su cuerpo y vuelve a ti.
+- **Duelos:** al empezar un duelo, la cámara salta sola a un plano lateral con los dos duelistas y, al terminar, muestra al ganador unos segundos. Se desactiva en el menú ("Cámara automática en los duelos") o con `trinchera_camara_duelo 0`.
 
 ## Menú de configuración (dentro del juego)
 
@@ -81,6 +122,7 @@ Cuando un viewer ya tiene su NPC en el mapa, lo que escribe en el chat aparece e
 
 - El globo usa el estilo elegido: papel y máquina de escribir en WW1, fondo oscuro y letras verdes en Lovecraft.
 - Dura entre 4 y 11 segundos según lo largo del mensaje. Corta los mensajes a 150 caracteres y 4 líneas.
+- **Emotes de Twitch** (`Kappa`, `LUL`, los de suscriptor del canal…) se ven como imagen dentro del globo. Se descargan de Twitch y quedan solo en memoria mientras el juego está abierto; no se guarda nada en disco. Los animados salen quietos. Los de 7TV, BTTV y FFZ todavía salen como texto.
 - Los mensajes que empiezan con `!` (comandos de otros bots) no salen en globo.
 - Si el viewer escribe `*algo*` o usa `/me algo` en Twitch, sale como acción: texto amarillo flotante, sin globo.
 - **Moderación:** si un mod borra el mensaje, da timeout o banea al viewer, el globo desaparece al instante.
@@ -141,11 +183,15 @@ Además, hay 3 s entre cualquier spawn (`cooldownGlobalSegundos`).
 |---|---|
 | `trinchera_menu` | Abre el menú |
 | `trinchera_test [nombre] [comando] [rango]` | NPC de prueba, por ejemplo `trinchera_test Luis zombie vip` |
-| `trinchera_decir <nombre> <mensaje>` | Globo de prueba sobre el NPC de ese nombre, por ejemplo `trinchera_decir Luis hola a todos` |
+| `trinchera_decir <nombre> <mensaje>` | Globo de prueba sobre el NPC de ese nombre, por ejemplo `trinchera_decir Luis hola a todos`. Para probar un emote: `palabra=id`, por ejemplo `trinchera_decir Luis hola Kappa=25` |
 | `trinchera_frase` | Un NPC al azar dice una frase ambiental ahora mismo |
 | `trinchera_resbalar` | El NPC que miras (o uno al azar) se resbala |
 | `trinchera_animar` | El NPC que miras (o uno al azar) hace una animación al azar |
 | `trinchera_animaciones` | Lista en la consola todas las animaciones del NPC que miras; `[*]` marca las que se usan al azar |
+| `trinchera_duelo <usuario1> <usuario2>` | Duelo inmediato entre los NPCs de esos viewers, por ejemplo `trinchera_duelo ana luis` |
+| `trinchera_votacion` | Abre una votación |
+| `trinchera_evento horda` / `rebelion` / `lenta` | Lanza el evento sin votar |
+| `trinchera_ver [usuario]` / `trinchera_ver_salir` | Cámara en tercera persona sobre un NPC de viewer |
 | `trinchera_limpiar` | Borra todos los NPCs de viewers |
 | `trinchera_tipos` | Lista los comandos activos |
 
