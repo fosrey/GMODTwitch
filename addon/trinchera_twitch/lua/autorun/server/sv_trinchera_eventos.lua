@@ -10,9 +10,9 @@ util.AddNetworkString("TrincheraAnuncio")
 util.AddNetworkString("TrincheraVotacion")
 util.AddNetworkString("TrincheraCamara")
 util.AddNetworkString("TrincheraCamaraDuelo")
+util.AddNetworkString("TrincheraDueloEstado")
 
 local ESPERA_ACEPTAR = 30 -- segundos para aceptar un reto
-local DURACION_DUELO = 90 -- si nadie cae antes, es empate
 local VELOCIDAD_LENTA = 0.35
 
 local MORADO = Color(145, 70, 255)
@@ -58,7 +58,249 @@ end
 ---------------------------------------------------------------------------
 
 local reto  -- { retador, rival, expira }  (usuarios de Twitch en minúsculas)
-local duelo -- { a, b, nombreA, nombreB, fin, dispA, dispB }
+local duelo -- { a, b, nombreA, nombreB, fin, dispA, dispB, arma, previaA, previaB, proximaFrase }
+
+-- Arma del duelo: se sortea una y la reciben los dos (solo los NPCs con manos).
+local ARMAS_DUELO = {
+	{ "weapon_pistol", "pistola" },
+	{ "weapon_smg1", "SMG" },
+	{ "weapon_shotgun", "escopeta" },
+	{ "weapon_ar2", "rifle AR2" },
+	{ "weapon_357", "revólver .357" },
+	{ "weapon_crossbow", "ballesta" },
+	{ "weapon_crowbar", "palanca" },
+	{ "weapon_stunstick", "porra eléctrica" },
+}
+
+local function ArmaUsablePorNPC(clase)
+	for _, v in pairs(list.Get("NPCUsableWeapons")) do
+		if v.class == clase then return true end
+	end
+	return false
+end
+
+local function SortearArma()
+	local posibles = {}
+	for _, a in ipairs(ARMAS_DUELO) do
+		if ArmaUsablePorNPC(a[1]) then table.insert(posibles, a) end
+	end
+	return posibles[math.random(#posibles)]
+end
+
+local function QuitarArmas(npc)
+	for _, arma in ipairs(npc.GetWeapons and npc:GetWeapons() or { npc:GetActiveWeapon() }) do
+		if IsValid(arma) then arma:Remove() end
+	end
+end
+
+-- Devuelve el arma que tenía antes (false = ninguna) o nil si este NPC no usa armas.
+local function ArmarParaDuelo(npc, clase)
+	if bit.band(npc:CapabilitiesGet(), CAP_USE_WEAPONS) == 0 then return end
+	local actual = npc:GetActiveWeapon()
+	local previa = IsValid(actual) and actual:GetClass() or false
+	QuitarArmas(npc)
+	npc:Give(clase)
+	return previa
+end
+
+local function DevolverArma(npc, previa)
+	if not IsValid(npc) or previa == nil then return end
+	QuitarArmas(npc)
+	if previa then npc:Give(previa) end
+end
+
+local function Porcentaje(npc)
+	if not IsValid(npc) then return 0 end
+	return math.Clamp(npc:Health() / math.max(1, npc:GetMaxHealth()), 0, 1)
+end
+
+---------------------------------------------------------------------------
+-- Diálogos del duelo: garrysmod/data/trinchera_frases_duelo.txt, por secciones.
+-- Se recarga solo al guardarlo, igual que las frases ambientales.
+---------------------------------------------------------------------------
+
+local FRASES_DUELO_ARCHIVO = "trinchera_frases_duelo.txt"
+
+local FRASES_DUELO_POR_DEFECTO = [=[
+# ============================================================
+#  La Trinchera - Frases de los duelos
+# ============================================================
+#  Lo que dicen los NPCs mientras pelean en un duelo.
+#
+#  - Una frase por línea, dentro de su sección [ ... ].
+#  - Las líneas que empiezan con # son comentarios.
+#  - Si la frase empieza y termina con *asteriscos*, sale como
+#    acción (texto amarillo flotante).
+#  - {nombre} es quien habla y {rival} su oponente.
+#  - A veces, en vez de una frase de [combate], dicen una de las
+#    frases ambientales (trinchera_frases.txt).
+#
+#  Guarda el archivo y el juego lo recarga solo en unos segundos.
+# ============================================================
+
+# Al empezar el duelo.
+[inicio]
+¡Prepárate, {rival}!
+Esto termina aquí, {rival}.
+Que el chat sea testigo.
+No es personal, {rival}... bueno, un poco sí.
+Por la gloria de la trinchera.
+Le prometí a mi madre que no pelearía. Perdón, mamá.
+¡Por el chat!
+{rival}, tus ancestros lloran desde R'lyeh.
+Vamos a bailar, {rival}.
+*se truena los dedos*
+*escupe al suelo*
+*se acomoda el casco*
+*mira fijamente a {rival}*
+
+# Mientras pelean, cada pocos segundos.
+[combate]
+¿Eso es todo lo que tienes?
+¡Quédate quieto, {rival}!
+Mi abuela pega más fuerte.
+¡Chat, mírenme!
+Esto no venía en el contrato.
+¡Más rápido, más fuerte!
+¿Quién te enseñó a pelear, {rival}? ¿Un headcrab?
+¡Ni siquiera estoy sudando!
+Las estrellas están de mi lado.
+¡Vuelve aquí, cobarde!
+¿Y si lo dejamos en empate?
+¡Por Marie!
+¡Esto es por lo de la otra vez!
+Tengo un mal presentimiento... para ti.
+*esquiva con estilo*
+*grita algo ininteligible*
+*hace una finta*
+*recarga con una sola mano*
+*se tropieza pero lo disimula*
+
+# Al recibir un golpe fuerte.
+[golpe]
+¡Ay!
+¡Eso dolió!
+¡Oye, eso es trampa!
+¡Mi espalda!
+¿Eso fue un golpe o un abrazo?
+Vi mi vida pasar... era aburrida.
+¡Tú no eres de este mundo, {rival}!
+*escupe barro*
+*se tambalea*
+*ve estrellas*
+
+# Cuando le queda poca vida (una vez por duelo).
+[pocavida]
+No... todavía no...
+Dile a Marie que la quise.
+Veo una luz... ¿es la salida?
+¡Chat, ayúdenme!
+Esto no puede terminar así...
+Si caigo, que suene algo épico.
+Las estrellas... ya están en posición...
+*se arrastra con dignidad*
+*reza en voz baja*
+*tiembla, pero sigue en pie*
+
+# El ganador.
+[victoria]
+¡GG, {rival}!
+¿Alguien más?
+Así se hace en la trinchera.
+Chat, ¿lo grabaron?
+Descansa, {rival}. Te lo ganaste.
+Fácil. Bueno, casi.
+¡Para la próxima entrena más, {rival}!
+*baila sobre la victoria*
+*hace el saludo militar*
+*celebra su victoria*
+
+# El que pierde por tiempo (sigue vivo, pero con menos vida).
+[derrota]
+¡Exijo la revancha!
+¡El reloj estaba arreglado!
+Me dejé ganar, obvio.
+La próxima vez, {rival}...
+*se va murmurando*
+*patea una piedra*
+]=]
+
+local frasesDuelo = {}
+local fechaFrasesDuelo
+local ultimaFraseDuelo
+
+local function LeerFrasesDuelo(texto)
+	texto = string.gsub(texto, "^\239\187\191", "") -- BOM del Bloc de notas
+	local secciones, actual = {}, nil
+
+	for linea in string.gmatch(texto .. "\n", "(.-)\r?\n") do
+		linea = string.Trim(linea)
+		local seccion = string.match(linea, "^%[(%w+)%]$")
+		if seccion then
+			actual = string.lower(seccion)
+			secciones[actual] = secciones[actual] or {}
+		elseif actual and linea ~= "" and string.sub(linea, 1, 1) ~= "#" then
+			table.insert(secciones[actual], linea)
+		end
+	end
+
+	return secciones
+end
+
+local function RevisarFrasesDuelo()
+	if not file.Exists(FRASES_DUELO_ARCHIVO, "DATA") then
+		file.Write(FRASES_DUELO_ARCHIVO, FRASES_DUELO_POR_DEFECTO)
+	end
+
+	local fecha = file.Time(FRASES_DUELO_ARCHIVO, "DATA")
+	if fecha == fechaFrasesDuelo then return end
+	fechaFrasesDuelo = fecha
+	frasesDuelo = LeerFrasesDuelo(file.Read(FRASES_DUELO_ARCHIVO, "DATA") or "")
+end
+
+RevisarFrasesDuelo()
+timer.Create("TrincheraFrasesDuelo", 5, 0, RevisarFrasesDuelo)
+
+-- momento: inicio, combate, golpe, pocavida, victoria o derrota.
+local function Hablar(npc, momento, rival)
+	if not IsValid(npc) or not TRINCHERA.Config().globos then return end
+
+	local frase
+	if momento == "combate" and TRINCHERA.FraseAmbiental and math.random() < 0.15 then
+		frase = TRINCHERA.FraseAmbiental(npc)
+	end
+
+	local lista = frasesDuelo[momento]
+	if not frase and lista and #lista > 0 then
+		frase = lista[math.random(#lista)]
+		if frase == ultimaFraseDuelo and #lista > 1 then frase = lista[math.random(#lista)] end
+		ultimaFraseDuelo = frase
+		frase = string.Replace(string.Replace(frase, "{nombre}", NombreDe(npc)), "{rival}", IsValid(rival) and NombreDe(rival) or "")
+	end
+	if not frase then return end
+
+	npc.TrincheraUltimoHabla = CurTime()
+	TRINCHERA.GloboNPC(npc, frase)
+end
+
+local function RivalDe(npc)
+	return duelo and (npc == duelo.a and duelo.b or duelo.a)
+end
+
+-- Barras de vida y reloj en pantalla (cl_trinchera_eventos.lua). "terminado" = última actualización.
+local function EnviarEstado(d, terminado)
+	net.Start("TrincheraDueloEstado")
+	net.WriteBool(terminado)
+	net.WriteString(d.nombreA)
+	net.WriteString(d.nombreB)
+	net.WriteFloat(d.fin)
+	net.WriteString(d.arma or "")
+	for _, npc in ipairs({ d.a, d.b }) do
+		net.WriteUInt(math.Clamp(IsValid(npc) and npc:Health() or 0, 0, 1000000), 20)
+		net.WriteUInt(math.Clamp(IsValid(npc) and npc:GetMaxHealth() or 1, 1, 1000000), 20)
+	end
+	net.Broadcast()
+end
 
 -- Dos puntos frente al streamer, a los lados y a la vista, para que el duelo salga en cámara.
 local function PuntosArena(ply)
@@ -106,7 +348,17 @@ local function EmpezarDuelo(a, b)
 		npc.TrincheraSigue = nil
 		npc.TrincheraDestino = nil
 		npc.TrincheraDuelo = true
+		npc.TrincheraPocaVida = nil
+		npc.TrincheraUltimoGolpe = nil
 		npc:SetHealth(npc:GetMaxHealth())
+	end
+
+	-- La misma arma para los dos; al terminar vuelven a la que tenían.
+	local arma = SortearArma()
+	local previaA, previaB
+	if arma then
+		previaA = ArmarParaDuelo(a, arma[1])
+		previaB = ArmarParaDuelo(b, arma[1])
 	end
 
 	local ply = Streamer()
@@ -122,8 +374,11 @@ local function EmpezarDuelo(a, b)
 	duelo = {
 		a = a, b = b,
 		nombreA = NombreDe(a), nombreB = NombreDe(b),
-		fin = CurTime() + DURACION_DUELO,
+		fin = CurTime() + TRINCHERA.Config().duracionDuelo,
 		dispA = a:Disposition(b), dispB = b:Disposition(a),
+		arma = arma and (previaA ~= nil or previaB ~= nil) and arma[2] or nil,
+		previaA = previaA, previaB = previaB,
+		proximaFrase = CurTime() + math.Rand(5, 8),
 	}
 
 	a:AddEntityRelationship(b, D_HT, 99)
@@ -132,22 +387,35 @@ local function EmpezarDuelo(a, b)
 	Atacar(b, a)
 
 	CamaraDuelo(a, b)
-	Anuncio("¡DUELO!", duelo.nombreA .. "  vs  " .. duelo.nombreB, ROJO, 4)
+	EnviarEstado(duelo, false)
+
+	local sub = duelo.nombreA .. "  vs  " .. duelo.nombreB
+	if duelo.arma then sub = sub .. "  ·  arma: " .. duelo.arma end
+	Anuncio("¡DUELO!", sub, ROJO, 4)
 	TRINCHERA.Aviso(ROJO, "¡DUELO! ", color_white, duelo.nombreA, GRIS, " vs ", color_white, duelo.nombreB)
+
+	-- Se provocan antes de empezar (el segundo responde un momento después).
+	Hablar(a, "inicio", b)
+	local d = duelo
+	timer.Simple(1.5, function()
+		if duelo == d then Hablar(b, "inicio", a) end
+	end)
 end
 
--- ganador: el NPC que quedó en pie; nil = empate o cancelado (motivo).
-local function TerminarDuelo(ganador, motivo)
+-- ganador: el NPC que gana; nil = empate o cancelado (motivo). porTiempo: se acabó el reloj.
+local function TerminarDuelo(ganador, motivo, porTiempo)
 	local d = duelo
 	if not d then return end
 	duelo = nil
 	CamaraDuelo()
+	EnviarEstado(d, true)
 
-	-- Vuelven a llevarse como antes del duelo.
-	for _, par in ipairs({ { d.a, d.b, d.dispA }, { d.b, d.a, d.dispB } }) do
-		local npc, otro, disp = par[1], par[2], par[3]
-		if IsValid(npc) then
+	-- Vuelven a llevarse como antes del duelo y recuperan su arma.
+	for _, par in ipairs({ { d.a, d.b, d.dispA, d.previaA }, { d.b, d.a, d.dispB, d.previaB } }) do
+		local npc, otro, disp, previa = par[1], par[2], par[3], par[4]
+		if IsValid(npc) and npc:Health() > 0 then
 			npc.TrincheraDuelo = nil
+			DevolverArma(npc, previa)
 			if IsValid(otro) then
 				npc:AddEntityRelationship(otro, disp, 99)
 				npc:ClearEnemyMemory(otro)
@@ -157,12 +425,23 @@ local function TerminarDuelo(ganador, motivo)
 
 	if IsValid(ganador) then
 		local nombre = ganador == d.a and d.nombreA or d.nombreB
+		local perdedorNPC = ganador == d.a and d.b or d.a
 		local perdedor = ganador == d.a and d.nombreB or d.nombreA
-		Anuncio(nombre .. " GANA", "derrotó a " .. perdedor .. " en duelo", DORADO, 5)
-		TRINCHERA.Aviso(DORADO, nombre, GRIS, " ganó el duelo contra ", color_white, perdedor)
-		TRINCHERA.GloboNPC(ganador, "*celebra su victoria*")
+
+		if porTiempo then
+			local pg, pp = math.Round(Porcentaje(ganador) * 100), math.Round(Porcentaje(perdedorNPC) * 100)
+			Anuncio("¡TIEMPO!", nombre .. " gana con " .. pg .. " % de vida contra " .. pp .. " %", DORADO, 5)
+			TRINCHERA.Aviso(DORADO, nombre, GRIS, " ganó por tiempo contra ", color_white, perdedor, GRIS, " (" .. pg .. " % vs " .. pp .. " %)")
+			Hablar(perdedorNPC, "derrota", ganador)
+		else
+			Anuncio(nombre .. " GANA", "derrotó a " .. perdedor .. " en duelo", DORADO, 5)
+			TRINCHERA.Aviso(DORADO, nombre, GRIS, " ganó el duelo contra ", color_white, perdedor)
+		end
+
+		local rival = perdedorNPC
+		timer.Simple(porTiempo and 1.5 or 0.5, function() Hablar(ganador, "victoria", rival) end)
 	else
-		Anuncio("Duelo terminado", motivo, GRIS, 4)
+		Anuncio(porTiempo and "¡TIEMPO!" or "Duelo terminado", motivo, GRIS, 4)
 		TRINCHERA.Aviso(GRIS, "Duelo entre ", color_white, d.nombreA, GRIS, " y ", color_white, d.nombreB, GRIS, ": " .. motivo)
 	end
 end
@@ -170,6 +449,21 @@ end
 local function EnDuelo(npc)
 	return duelo and (npc == duelo.a or npc == duelo.b)
 end
+
+-- Barras de vida al día y frases al recibir golpes fuertes o quedar con poca vida.
+hook.Add("PostEntityTakeDamage", "TrincheraDuelo", function(npc, dano, recibio)
+	if not recibio or not EnDuelo(npc) or npc:Health() <= 0 then return end
+	EnviarEstado(duelo, false)
+
+	local rival = RivalDe(npc)
+	if Porcentaje(npc) < 0.25 and not npc.TrincheraPocaVida then
+		npc.TrincheraPocaVida = true
+		Hablar(npc, "pocavida", rival)
+	elseif dano:GetDamage() >= npc:GetMaxHealth() * 0.2 and CurTime() > (npc.TrincheraUltimoGolpe or 0) + 3 then
+		npc.TrincheraUltimoGolpe = CurTime()
+		Hablar(npc, "golpe", rival)
+	end
+end)
 
 hook.Add("OnNPCKilled", "TrincheraDuelo", function(npc)
 	if not EnDuelo(npc) then return end
@@ -440,11 +734,23 @@ timer.Create("TrincheraEventos", 0.5, 0, function()
 
 	if duelo then
 		if ahora >= duelo.fin then
-			TerminarDuelo(nil, "empate, nadie cayó a tiempo")
+			-- Se acabó el reloj: gana quien tenga más vida (en porcentaje, por si sus NPCs son distintos).
+			local pa, pb = Porcentaje(duelo.a), Porcentaje(duelo.b)
+			if math.abs(pa - pb) < 0.005 then
+				TerminarDuelo(nil, "empate perfecto", true)
+			else
+				TerminarDuelo(pa > pb and duelo.a or duelo.b, nil, true)
+			end
 		elseif IsValid(duelo.a) and IsValid(duelo.b) then
 			-- Que no se distraigan: se siguen buscando aunque se pierdan de vista.
 			if duelo.a:GetEnemy() ~= duelo.b then Atacar(duelo.a, duelo.b) end
 			if duelo.b:GetEnemy() ~= duelo.a then Atacar(duelo.b, duelo.a) end
+
+			if ahora >= duelo.proximaFrase then
+				duelo.proximaFrase = ahora + math.Rand(5, 8)
+				local quien = math.random(2) == 1 and duelo.a or duelo.b
+				Hablar(quien, "combate", RivalDe(quien))
+			end
 		end
 	end
 

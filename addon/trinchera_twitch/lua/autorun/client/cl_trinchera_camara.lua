@@ -198,15 +198,10 @@ hook.Add("HUDShouldDraw", "TrincheraCamara", function(nombre)
 end)
 
 hook.Add("HUDPaint", "TrincheraCamara", function()
-	if not Activa() then return end
+	-- En los duelos los nombres ya salen con las barras de vida (cl_trinchera_eventos.lua).
+	if not Activa() or duelo or not IsValid(objetivo) then return end
 
-	local texto
-	if duelo and IsValid(duelo.a) and IsValid(duelo.b) then
-		texto = "DUELO  ·  " .. NombreDe(duelo.a) .. " vs " .. NombreDe(duelo.b)
-	elseif IsValid(objetivo) then
-		texto = "VIENDO A  " .. NombreDe(objetivo)
-	end
-	if not texto then return end
+	local texto = "VIENDO A  " .. NombreDe(objetivo)
 
 	surface.SetFont("TrincheraCamara")
 	local w, h = surface.GetTextSize(texto)

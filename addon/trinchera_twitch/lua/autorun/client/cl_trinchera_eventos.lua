@@ -98,7 +98,117 @@ local function DibujarVotacion(ahora)
 	end
 end
 
+---------------------------------------------------------------------------
+-- Duelo: barras de vida a los lados y reloj al centro, arriba, como en un juego de pelea.
+-- La vida se queda pegada al borde exterior y un tramo naranja muestra el último golpe.
+---------------------------------------------------------------------------
+
+surface.CreateFont("TrincheraDueloReloj", { font = "Roboto", size = 60, weight = 900, antialias = true, extended = true })
+surface.CreateFont("TrincheraDueloNombre", { font = "Roboto", size = 26, weight = 800, antialias = true, extended = true })
+surface.CreateFont("TrincheraDueloArma", { font = "Roboto", size = 20, weight = 600, antialias = true, extended = true })
+
+local ROJO = Color(230, 60, 50)
+local NARANJA = Color(255, 140, 50)
+local FONDO_BARRA = Color(50, 22, 22)
+
+local estadoDuelo -- { nombres, fin, arma, vidas = { { vida, max } x2 }, mostradas, inicio, cierre }
+local ultimoSegundo
+
+net.Receive("TrincheraDueloEstado", function()
+	local terminado = net.ReadBool()
+	local nombreA, nombreB = net.ReadString(), net.ReadString()
+	local fin, arma = net.ReadFloat(), net.ReadString()
+	local vidas = {}
+	for i = 1, 2 do vidas[i] = { vida = net.ReadUInt(20), max = net.ReadUInt(20) } end
+
+	-- Duelo nuevo: las barras entran llenas.
+	if not estadoDuelo or estadoDuelo.fin ~= fin then
+		estadoDuelo = { inicio = RealTime(), mostradas = { 1, 1 } }
+		ultimoSegundo = nil
+	end
+	estadoDuelo.nombres = { nombreA, nombreB }
+	estadoDuelo.fin, estadoDuelo.arma, estadoDuelo.vidas = fin, arma, vidas
+	if terminado then estadoDuelo.cierre = RealTime() + 3.5 end
+end)
+
+local function ColorVida(f)
+	if f > 0.5 then return Color(90, 200, 70) end
+	if f > 0.25 then return Color(240, 200, 40) end
+	return ROJO
+end
+
+local function DibujarDuelo(ahora)
+	local e = estadoDuelo
+	if not e then return end
+	if e.cierre and ahora > e.cierre then
+		estadoDuelo = nil
+		return
+	end
+
+	local entrada = math.Clamp((ahora - e.inicio) / 0.3, 0, 1)
+	local a = 255 * (e.cierre and math.Clamp((e.cierre - ahora) / 0.8, 0, 1) or 1)
+	local cx = ScrW() / 2
+	local y = 30 - (1 - entrada) * 120
+	local anchoBarra, altoBarra, hueco = math.min(560, ScrW() * 0.34), 30, 72
+
+	for i = 1, 2 do
+		local v = e.vidas[i]
+		local f = math.Clamp(v.vida / math.max(1, v.max), 0, 1)
+		e.mostradas[i] = math.max(f, math.Approach(e.mostradas[i], f, RealFrameTime() * 0.35))
+		local m = e.mostradas[i]
+
+		local izquierda = i == 1
+		local x = izquierda and (cx - hueco - anchoBarra) or (cx + hueco)
+
+		draw.RoundedBox(4, x - 3, y - 3, anchoBarra + 6, altoBarra + 6, ColorAlpha(NEGRO, a * 0.85))
+		surface.SetDrawColor(FONDO_BARRA.r, FONDO_BARRA.g, FONDO_BARRA.b, a)
+		surface.DrawRect(x, y, anchoBarra, altoBarra)
+
+		-- Tramo entre "desde" y "hasta", medidos desde el borde exterior (0) hacia el reloj (1).
+		local function Tramo(desde, hasta, col)
+			local w = anchoBarra * (hasta - desde)
+			if w <= 0 then return end
+			local bx = izquierda and (x + anchoBarra * desde) or (x + anchoBarra * (1 - hasta))
+			surface.SetDrawColor(col.r, col.g, col.b, a)
+			surface.DrawRect(bx, y, w, altoBarra)
+		end
+
+		Tramo(f, m, NARANJA)
+		local col = ColorVida(f)
+		if f > 0 and f <= 0.25 and math.sin(ahora * 14) > 0 then col = color_white end -- a punto de perder: parpadea
+		Tramo(0, f, col)
+
+		local texto = e.nombres[i] .. "   " .. math.ceil(f * 100) .. " %"
+		draw.SimpleTextOutlined(texto, "TrincheraDueloNombre", izquierda and x or (x + anchoBarra), y + altoBarra + 6,
+			Color(255, 255, 255, a), izquierda and TEXT_ALIGN_LEFT or TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP, 2, ColorAlpha(NEGRO, a))
+	end
+
+	-- Reloj. Los últimos 10 segundos va en rojo y hace tic.
+	local segundos = math.max(0, math.ceil(e.fin - CurTime()))
+	if not e.cierre and segundos <= 10 and segundos > 0 and segundos ~= ultimoSegundo then
+		ultimoSegundo = segundos
+		surface.PlaySound("buttons/blip1.wav")
+	end
+
+	local reloj, colReloj = tostring(segundos), color_white
+	if e.cierre then
+		local ko = e.vidas[1].vida <= 0 or e.vidas[2].vida <= 0
+		reloj, colReloj = ko and "K.O." or "0", ROJO
+	elseif segundos <= 10 then
+		colReloj = ColorAlpha(ROJO, 255 * (0.6 + 0.4 * math.abs(math.sin(ahora * 6))))
+	end
+
+	draw.RoundedBox(8, cx - 64, y - 16, 128, 66, ColorAlpha(FONDO, a))
+	draw.SimpleTextOutlined(reloj, "TrincheraDueloReloj", cx, y + 17, ColorAlpha(colReloj, a * colReloj.a / 255),
+		TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 3, ColorAlpha(NEGRO, a))
+	if e.arma ~= "" then
+		draw.SimpleTextOutlined(e.arma, "TrincheraDueloArma", cx, y + 60, Color(230, 230, 230, a),
+			TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP, 2, ColorAlpha(NEGRO, a))
+	end
+end
+
 hook.Add("HUDPaint", "TrincheraEventos", function()
+	DibujarDuelo(RealTime())
 	DibujarVotacion(CurTime())
 	DibujarAnuncio(RealTime())
 end)

@@ -803,6 +803,9 @@ local function FrasePara(npc)
 	return string.Replace(frase, "{nombre}", npc.TrincheraViewer or "")
 end
 
+-- Para los duelos (sv_trinchera_eventos.lua): a veces sueltan una frase ambiental en plena pelea.
+TRINCHERA.FraseAmbiental = FrasePara
+
 -- Cada "cada" segundos (con algo de azar), un NPC cuyo viewer lleva "silencio" segundos callado dice algo.
 local function FrasesTick(config, ahora, forzar)
 	local ajustes = config.frases

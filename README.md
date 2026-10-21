@@ -51,9 +51,13 @@ Con `!dar`, si el viewer ya escribió en el chat, se usan su nombre, su color y 
 - `!duelo @luis`: Luis tiene 30 s para escribir `!aceptar` (o `!rechazar`). Los dos necesitan tener su NPC en el mapa.
 - Al aceptar, los dos NPCs aparecen **frente al streamer**, uno a cada lado, se curan del todo y pelean. Si no hay espacio frente a ti, pelean donde estén.
 - Cada uno pelea con su NPC actual, así que un antlion guard contra un headcrab es posible.
-- Gana el que queda en pie: anuncio grande en pantalla y el ganador celebra. Si nadie cae en 90 s es empate; si uno desaparece (nuevo `!spawn`, limpieza…) se cancela.
+- **Arma sorteada:** al empezar se sortea un arma (pistola, SMG, escopeta, AR2, .357, ballesta, palanca o porra) y la reciben **los dos**. Solo la usan los NPCs con manos (ciudadanos, rebeldes, combine…); zombies, antlions y demás pelean con lo suyo. Al terminar, cada uno vuelve a su arma de antes.
+- **Como en un juego de pelea:** arriba aparecen las **barras de vida** de los dos con su nombre y su porcentaje, y un **reloj** al centro. La barra parpadea cuando a alguien le queda menos del 25 %. Los últimos 10 s el reloj se pone rojo y hace tic.
+- **40 s por duelo** (ajustable en el menú, de 15 a 120). Si se acaba el tiempo, sale **"¡TIEMPO!"** y gana el que tenga más vida en porcentaje. Si uno cae antes, **K.O.**
+- Si uno desaparece (nuevo `!spawn`, limpieza…) el duelo se cancela.
+- **Diálogos:** los duelistas se provocan al empezar, hablan cada 5–8 s, se quejan de los golpes fuertes, dicen sus últimas palabras con poca vida, y el ganador celebra (el que pierde por tiempo pide la revancha). A veces se les escapa una frase ambiental en plena pelea.
+  - Se editan en `garrysmod/data/trinchera_frases_duelo.txt`, por secciones: `[inicio]`, `[combate]`, `[golpe]`, `[pocavida]`, `[victoria]` y `[derrota]`. `{nombre}` es quien habla y `{rival}` su oponente. Se recarga solo al guardar; si lo borras, vuelve el original.
 - Un duelo a la vez. Mientras pelean no pasean ni se les puede pedir que te sigan.
-- Los NPCs **sin arma** (por ejemplo ciudadanos desarmados) no pueden atacar: dales un arma con Shift + E antes.
 - Se activan o desactivan en el menú ("Permitir duelos").
 
 ## Votaciones

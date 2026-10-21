@@ -163,6 +163,7 @@ local function AbrirMenu(config)
 
 	Titulo("DUELOS Y VOTACIONES")
 	Casilla("Permitir duelos (!duelo @viewer)", config.duelos, function(v) config.duelos = v end)
+	Deslizador("Duración del duelo (s)", 15, 120, 0, config.duracionDuelo, function(v) config.duracionDuelo = math.floor(v) end)
 	local votacion = config.votacion
 	Deslizador("Duración de la votación (s)", 10, 120, 0, votacion.duracion, function(v) votacion.duracion = math.floor(v) end)
 	Deslizador("Zombies por horda", 1, 30, 0, votacion.horda, function(v) votacion.horda = math.floor(v) end)

@@ -38,6 +38,7 @@ local function ConfigPorDefecto()
 		unoPorViewer = true,
 		cadaveres = true,
 		duelos = true,
+		duracionDuelo = 40,
 		estilo = "ww1",
 		colorTwitch = false,
 		max = 25,
@@ -83,6 +84,7 @@ local function Sanear(c)
 		unoPorViewer = c.unoPorViewer ~= false,
 		cadaveres = c.cadaveres ~= false,
 		duelos = c.duelos ~= false,
+		duracionDuelo = math.floor(Numero(c, "duracionDuelo", d.duracionDuelo, 15, 120)),
 		votacion = {
 			duracion = Numero(v, "duracion", d.votacion.duracion, 10, 120),
 			horda = math.floor(Numero(v, "horda", d.votacion.horda, 1, 30)),
